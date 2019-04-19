@@ -50,7 +50,7 @@ export const getTransactionsCustomerId = functions.https.onRequest(
   }
 );
 
-export const getTransactionsMerchantId = functions.https.onRequest(
+export const getTransactionsByMerchantId = functions.https.onRequest(
   (request, response) => {
     cors(request, response, () => {
       const merchantId = request.query.merchantId;
@@ -67,10 +67,10 @@ export const getTransactionsMerchantId = functions.https.onRequest(
           if (snapshot.val() !== null) {
             const data = snapshot.val();
             response.send(data);
-          } else response.send('{"message": "Invalid Merchant Id"}');
+          } else response.send('{"status":1, "message": "Invalid Merchant Id"}');
         })
         .catch(error => {
-          response.send('{"message": "Invalid customer Id"}');
+          response.send('{"status":1, "message": "Invalid Merchant Id"}');
         });
     })
   }
