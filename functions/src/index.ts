@@ -7,18 +7,18 @@ admin.initializeApp();
 // Start writing Firebase Functions
 // https://firebase.google.com/docs/functions/typescript
 
-export const getBarcodeDetails = functions.https.onRequest(
+export const getInvoiceDetails = functions.https.onRequest(
   (request, response) => {
-    const barcodeNumber = request.query.barcodeId;
+    const invoiceId = request.query.invoiceId;
 
     return admin
       .database()
-      .ref("Barcodes/" + barcodeNumber)
+      .ref("Invoices/" + invoiceId)
       .once("value", snapshot => {
         if (snapshot.val() !== null) {
           const data = snapshot.val();
           response.send(data);
-        } else response.send('{"message": "Invalid Barcode Number"}');
+        } else response.send('{"message": "Invalid Invoice Id"}');
       })
       .catch(error => {
         response.send(error);
@@ -84,7 +84,7 @@ export const getMerchantInvoices = functions.https.onRequest(
       const merchantRef = admin
         .database()
         .ref()
-        .child("Barcodes")
+        .child("Invoices")
         .orderByChild("merchantId")
         .equalTo(merchantId);
 
@@ -96,7 +96,7 @@ export const getMerchantInvoices = functions.https.onRequest(
           } else response.send('{"status": 1 , "message": "Invalid Merchant Id"}');
         })
         .catch(error => {
-          response.send('{"status": 1, "message": "Invalid customer Id"}');
+          response.send('{"status": 1, "message": "Invalid Merchant Id"}');
         });
     })
   }
@@ -112,7 +112,7 @@ export const addInvoice = functions.https.onRequest((request, response) => {
     const merchantId = request.body.merchantId;
     const imgUrl = request.body.imgUrl;
 
-    const barcodeRef = admin.database().ref("Barcodes");
+    const InvoiceRef = admin.database().ref("Invoices");
     const dateCreatedimestamp = new Date().getTime();
     const invoiceData = {
       title: title,
@@ -125,11 +125,11 @@ export const addInvoice = functions.https.onRequest((request, response) => {
       imgUrl: imgUrl
     };
 
-    return barcodeRef.push(invoiceData).then(result => {
+    return InvoiceRef.push(invoiceData).then(result => {
       const resultString = "" + result;
       const result_split = resultString.split("/");
       const invoiceId = result_split.pop();
-      barcodeRef
+      InvoiceRef
         .child(invoiceId + "/id")
         .set(invoiceId)
         .then(invoiceResult => {
@@ -149,23 +149,26 @@ export const addInvoice = functions.https.onRequest((request, response) => {
 
 
 
-export const makePurchase = functions.https.onRequest((request, response) => {
-  const barcodeNumber = request.query.barcodeNumber;
+export const addTransaction = functions.https.onRequest((request, response) => {
+  const invoiceId = request.query.invoiceId;
   const customerId = request.query.customerId;
   const status = request.query.status;
+  const customerName = request.query.customerName;
 
-  const barcodeRef = admin.database().ref("Barcodes/" + barcodeNumber);
+  const InvoiceRef = admin.database().ref("Invoices/" + invoiceId);
   const transactionRef = admin.database().ref("Transaction");
-  return barcodeRef
+  const invoiceNumber = "INV" + Math.floor(10000 + Math.random() * 90000);
+  return InvoiceRef
     .once("value", snapshot => {
       if (snapshot.val() !== null) {
         const transactionTimestamp = new Date().getTime();
         const transactionData = {
           customerId: customerId,
-          timestamp: transactionTimestamp,
-          merchantId: snapshot.val().merchantId,
-          invoiceNumber: barcodeNumber,
-          status: status
+          customerName: customerName,
+          transactionDate: transactionTimestamp,
+          invoiceNumber: invoiceNumber,
+          status: status,
+          invoice: snapshot.val()
         };
         transactionRef.push(transactionData).then(result => {
           const resultString = "" + result;
@@ -176,12 +179,12 @@ export const makePurchase = functions.https.onRequest((request, response) => {
             .set(transactionId)
             .then(transactionIdresult => {
               response.send(
-                '{"type": "success", "message": "Successfully added new transaction"}'
+                '{"status": 1, "message": "Successfully added new transaction"}'
               );
             })
             .catch(error => {
               response.send(
-                '{"type": "error", "message": "Error adding new transaction"}'
+                '{"status": 1, "message": "Error adding new transaction"}'
               );
             });
         });
