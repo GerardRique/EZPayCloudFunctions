@@ -52,70 +52,102 @@ export const getTransactionsCustomerId = functions.https.onRequest(
 
 export const getTransactionsMerchantId = functions.https.onRequest(
   (request, response) => {
-    const merchantId = request.query.merchantId;
+    cors(request, response, () => {
+      const merchantId = request.query.merchantId;
 
-    const merchantRef = admin
-      .database()
-      .ref()
-      .child("Transaction")
-      .orderByChild("merchantId")
-      .equalTo(merchantId);
+      const merchantRef = admin
+        .database()
+        .ref()
+        .child("Transaction")
+        .orderByChild("merchantId")
+        .equalTo(merchantId);
 
-    return merchantRef
-      .once("value", snapshot => {
-        if (snapshot.val() !== null) {
-          const data = snapshot.val();
-          response.send(data);
-        } else response.send('{"message": "Invalid Merchant Id"}');
-      })
-      .catch(error => {
-        response.send('{"message": "Invalid customer Id"}');
-      });
+      return merchantRef
+        .once("value", snapshot => {
+          if (snapshot.val() !== null) {
+            const data = snapshot.val();
+            response.send(data);
+          } else response.send('{"message": "Invalid Merchant Id"}');
+        })
+        .catch(error => {
+          response.send('{"message": "Invalid customer Id"}');
+        });
+    })
+  }
+);
+
+export const getMerchantInvoices = functions.https.onRequest(
+  (request, response) => {
+    cors(request, response, () => {
+      const merchantId = request.query.id;
+
+      const merchantRef = admin
+        .database()
+        .ref()
+        .child("Barcodes")
+        .orderByChild("merchantId")
+        .equalTo(merchantId);
+
+      return merchantRef
+        .once("value", snapshot => {
+          if (snapshot.val() !== null) {
+            const data = snapshot.val();
+            response.send(data);
+          } else response.send('{"status": 1 , "message": "Invalid Merchant Id"}');
+        })
+        .catch(error => {
+          response.send('{"status": 1, "message": "Invalid customer Id"}');
+        });
+    })
   }
 );
 
 export const addInvoice = functions.https.onRequest((request, response) => {
-  const category = request.body.category;
-  const title = request.body.title;
-  const location = request.body.location;
-  const price = request.body.price;
-  const description = request.body.description;
-  const merchantId = request.body.merchantId;
-  const img = request.body.img;
+  cors(request, response, () => {
+    const category = request.body.category;
+    const title = request.body.title;
+    const location = request.body.location;
+    const price = request.body.price;
+    const description = request.body.description;
+    const merchantId = request.body.merchantId;
+    const imgUrl = request.body.imgUrl;
 
-  const barcodeRef = admin.database().ref("Barcodes");
-  const dateCreatedimestamp = new Date().getTime();
-  const invoiceData = {
-    title: title,
-    category: category,
-    merchantId: merchantId,
-    description: description,
-    price: price,
-    location: location,
-    dateCreated: dateCreatedimestamp,
-    imgUrl: img
-  };
+    const barcodeRef = admin.database().ref("Barcodes");
+    const dateCreatedimestamp = new Date().getTime();
+    const invoiceData = {
+      title: title,
+      category: category,
+      merchantId: merchantId,
+      description: description,
+      price: price,
+      location: location,
+      dateCreated: dateCreatedimestamp,
+      imgUrl: imgUrl
+    };
 
-  return barcodeRef.push(invoiceData).then(result => {
-    const resultString = "" + result;
-    const result_split = resultString.split("/");
-    const invoiceId = result_split.pop();
-    barcodeRef
-      .child(invoiceId + "/id")
-      .set(invoiceId)
-      .then(invoiceResult => {
-        response.send(
-          '{"type": "success", "message": "Successfully added new invoice"}'
-        );
-      })
-      .catch(error => {
-        console.log(error);
-        response.send(
-          '{"type": "error", "message": "Error adding new transaction"}'
-        );
-      });
-  });
+    return barcodeRef.push(invoiceData).then(result => {
+      const resultString = "" + result;
+      const result_split = resultString.split("/");
+      const invoiceId = result_split.pop();
+      barcodeRef
+        .child(invoiceId + "/id")
+        .set(invoiceId)
+        .then(invoiceResult => {
+          response.send(
+            '{"type": "success", "message": "' + invoiceId + '"}'
+          );
+        })
+        .catch(error => {
+          console.log(error);
+          response.send(
+            '{"type": "error", "message": "Error adding new invoice"}'
+          );
+        });
+    });
+  })
 });
+
+
 
 export const makePurchase = functions.https.onRequest((request, response) => {
   const barcodeNumber = request.query.barcodeNumber;
@@ -169,26 +201,25 @@ export const makePurchase = functions.https.onRequest((request, response) => {
 export const createNewMerchant = functions.https.onRequest(
   (request, response) => {
     cors(request, response, () => {
-      const userData = {
-        email: request.body.email,
-        name: request.body.name,
-        paypalId: request.body.paypalId,
-        password: request.body.password,
-        id: ""
-      };
+
       admin
         .auth()
         .createUser({
-          email: userData.email,
-          password: userData.password,
-          displayName: userData.name
+          email: request.body.email,
+          password: request.body.password,
+          displayName: request.body.name
         })
-        .then(function(userRecord) {
+        .then(function (userRecord) {
           console.log(
             "Successfully created new firebase user:",
             userRecord.uid
           );
-          userData.id = userRecord.uid;
+          const userData = {
+            email: request.body.email,
+            name: request.body.name,
+            paypalId: request.body.paypalId,
+            id: userRecord.uid
+          };
           admin
             .database()
             .ref("Users/Merchants")
@@ -198,8 +229,8 @@ export const createNewMerchant = functions.https.onRequest(
               console.log("Successfully created user with ID: " + userData.id);
               response.send(
                 '{"status": 0, "message": "You account has been successfully created, ' +
-                  userData.name +
-                  '"}'
+                userData.name +
+                '"}'
               );
             })
             .catch(error => {
@@ -209,7 +240,7 @@ export const createNewMerchant = functions.https.onRequest(
               );
             });
         })
-        .catch(function(error) {
+        .catch(function (error) {
           response.send('{"status": 1, "message": "' + error + '"}');
         });
     });
@@ -237,8 +268,8 @@ export const createNewCustomer = functions.https.onRequest(
         console.log("Successfully created customer with ID: " + id);
         response.send(
           '{"type": "success", "message": "Successfully created new customer with ID ' +
-            id +
-            '"}'
+          id +
+          '"}'
         );
       })
       .catch(error => {
@@ -246,5 +277,26 @@ export const createNewCustomer = functions.https.onRequest(
           '{"type": "error", "message": "Error creating customer"}'
         );
       });
+  }
+);
+
+
+export const getMerchant = functions.https.onRequest(
+  (request, response) => {
+    cors(request, response, () => {
+      const id = request.query.id;
+      return admin
+        .database()
+        .ref("Users/Merchants/" + id)
+        .once("value", snapshot => {
+          if (snapshot.val() !== null) {
+            const data = snapshot.val();
+            response.send(data);
+          } else response.send('{"staus":1, "message": "Unable to retrieve merchant"}');
+        })
+        .catch(error => {
+          response.send(error);
+        });
+    })
   }
 );
