@@ -202,12 +202,15 @@ export const createNewMerchant = functions.https.onRequest(
   (request, response) => {
     cors(request, response, () => {
 
+      const merchantId = "MERCH" + Math.floor(10000 + Math.random() * 90000);
+
       admin
         .auth()
         .createUser({
           email: request.body.email,
           password: request.body.password,
-          displayName: request.body.name
+          displayName: request.body.name,
+          uid: merchantId
         })
         .then(function (userRecord) {
           console.log(
@@ -218,15 +221,15 @@ export const createNewMerchant = functions.https.onRequest(
             email: request.body.email,
             name: request.body.name,
             paypalId: request.body.paypalId,
-            id: userRecord.uid
+            id: merchantId
           };
           admin
             .database()
             .ref("Users/Merchants")
-            .child(userData.id)
+            .child(merchantId)
             .set(userData)
             .then(result => {
-              console.log("Successfully created user with ID: " + userData.id);
+              console.log("Successfully created user with ID: " + merchantId);
               response.send(
                 '{"status": 0, "message": "You account has been successfully created, ' +
                 userData.name +
@@ -249,33 +252,54 @@ export const createNewMerchant = functions.https.onRequest(
 
 export const createNewCustomer = functions.https.onRequest(
   (request, response) => {
-    const id = request.query.id;
     const email = request.query.email;
     const name = request.query.name;
+    const password = request.query.password;
 
-    const userData = {
-      email: email,
-      name: name,
-      id: id
-    };
+    const customerId = "CUS" + Math.floor(10000 + Math.random() * 90000);
 
-    admin
-      .database()
-      .ref("Users/Customers")
-      .child(id)
-      .set(userData)
-      .then(result => {
-        console.log("Successfully created customer with ID: " + id);
-        response.send(
-          '{"type": "success", "message": "Successfully created new customer with ID ' +
-          id +
-          '"}'
-        );
+
+    return admin.
+      auth().
+      createUser({
+        email: email,
+        password: password,
+        displayName: name,
+        uid: customerId,
+        disabled: false
       })
-      .catch(error => {
-        response.send(
-          '{"type": "error", "message": "Error creating customer"}'
+      .then((userRecord) => {
+        console.log(
+          "Successfully created new firebase user:",
+          userRecord.uid
         );
+        const userData = {
+          email: email,
+          name: name,
+          id: customerId
+        };
+
+        admin
+        .database()
+        .ref("Users/Customers")
+        .child(customerId)
+        .set(userData)
+        .then(result => {
+          console.log("Successfully created customer with ID: " + customerId);
+          response.send(
+            '{"status": 0, "message": "Successfully created new customer with ID ' +
+            customerId +
+            '", "id": ' + 
+            customerId + '}'
+          );
+        })
+        .catch(error => {
+          response.send(
+            '{"status": 1, "message": "Error creating customer"}'
+          );
+        });
+      }).catch((error) => {
+        response.send('{"status": 1. "message": "'+ error +'"}');
       });
   }
 );
