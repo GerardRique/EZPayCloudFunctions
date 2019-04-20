@@ -70,7 +70,7 @@ export const getTransactionsByMerchantId = functions.https.onRequest(
           } else response.send('{"status":1, "message": "Invalid Merchant Id"}');
         })
         .catch(error => {
-          response.send('{"status":1, "message": "Invalid Merchant Id"}');
+          response.send('{"status":1, "message": "'+ error +'"}');
         });
     })
   }
@@ -148,7 +148,6 @@ export const addInvoice = functions.https.onRequest((request, response) => {
 });
 
 
-
 export const addTransaction = functions.https.onRequest((request, response) => {
   const invoiceId = request.query.invoiceId;
   const customerId = request.query.customerId;
@@ -168,7 +167,8 @@ export const addTransaction = functions.https.onRequest((request, response) => {
           transactionDate: transactionTimestamp,
           invoiceNumber: invoiceNumber,
           status: status,
-          invoice: snapshot.val()
+          invoice: snapshot.val(),
+          merchantId: snapshot.val().merchantId
         };
         transactionRef.push(transactionData).then(result => {
           const resultString = "" + result;
@@ -327,3 +327,83 @@ export const getMerchant = functions.https.onRequest(
     })
   }
 );
+
+export const getMerchants = functions.https.onRequest(
+  (request, response) => {
+    return admin
+    .database()
+    .ref("Users/Merchants")
+    .once("value", (snapshot) => {
+      if(snapshot.val() !== null){
+        const data = snapshot.val();
+        response.send(data);
+      }
+      else response.send('{"staus": 1, "message": "Unable to retrieve merchants"}')
+    })
+    .catch((error) => {
+      response.send('{"staus": 1, "message": "'+ error +'"}');
+    });
+  }
+)
+
+export const topSellingProduct = functions.https.onRequest(
+  (request, response) => {
+    cors(request, response, () => {
+      const merchantId = request.query.merchantId;
+      const merchantTransactionRef = admin
+      .database()
+      .ref()
+      .child("Transaction")
+      .orderByChild("merchantId")
+      .equalTo(merchantId);
+      
+
+      return merchantTransactionRef
+      .once("value", (snapshot) => {
+        const data: any = {};
+        if(snapshot.val() !== null){
+          snapshot.forEach((transaction) => { 
+            if(transaction.val().invoice.title in data){
+              data[transaction.val().invoice.title] += 1;
+            }
+            else data[transaction.val().invoice.title] = 1;
+          })
+          response.send(data);
+        }
+        else response.send('{"staus": 1, "message": "No merchants match the given ID"}')
+      }).catch((error) => {
+        response.send('{"staus": 1, "message": "'+ error +'"}');
+      })
+    })
+  }
+);
+
+export const transactionsByMonth = functions.https.onRequest(
+  (request, response) => {
+    cors(request, response, () => {
+      const merchantId = request.query.merchantId;
+      const merchantTransactionRef = admin
+      .database()
+      .ref()
+      .child("Transaction")
+      .orderByChild("merchantId")
+      .equalTo(merchantId);
+
+      return merchantTransactionRef
+      .once("value", (snapshot) => {
+        const months: Array<number> = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        if(snapshot.val() != null){
+          snapshot.forEach((transaction) => {
+            let current = new Date(transaction.val().transactionDate);
+            months[current.getMonth()] += 1;
+          });
+          response.send(months);
+        }
+        else response.send('{"staus": 1, "message": "No merchants match the given ID"}')
+      }).catch((error) => {
+        response.send('{"staus": 1, "message": "'+ error +'"}');
+      });
+
+    })
+  }
+)
